@@ -1,34 +1,42 @@
 package reloader
 
 import (
-		"io/ioutil"
+	"io/ioutil"
 	"log"
 	"path/filepath"
+	"strings"
+		"fmt"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/guoruibiao/commands"
-	"fmt"
+	"time"
 )
 
+// Reloader auto reload programs by checking file modified or not based on EPOOL
 type Reloader struct {
-	files   []string
-	Watcher *fsnotify.Watcher
+	files    []string          // files in `PWD` with recursion way
+	Watcher  *fsnotify.Watcher // based on epool of system supported
+	Duration int     // duration to check if files whether be modified, seconds
+	Command  []string          // actually command to be run, such as `go run main.go`
 }
 
-func NewReloader() (*Reloader, error) {
+// NewReloader get the instance of Reloader
+func NewReloader(commands []string, duration int) (*Reloader, error) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, err
 	}
 	reloader := &Reloader{
-		files:   nil,
-		Watcher: watcher,
+		files:    nil,
+		Watcher:  watcher,
+		Duration: duration,
+		Command:  commands,
 	}
 	return reloader, nil
 }
 
-
-func (reloader *Reloader)dirWalks(home string) (error) {
+// dirWalks get all the files within `PWD`
+func (reloader *Reloader) dirWalks(home string) error {
 	fileinfos, err := ioutil.ReadDir(home)
 	if err != nil {
 		return err
@@ -46,8 +54,7 @@ func (reloader *Reloader)dirWalks(home string) (error) {
 	return nil
 }
 
-
-// add ignore files 进行过滤
+// AddFiles add ignore files to checking list
 func (reloader *Reloader) AddFiles(files []string) {
 	for _, filename := range files {
 		if ok := reloader.ignoreFilter(filename); ok == true {
@@ -57,17 +64,25 @@ func (reloader *Reloader) AddFiles(files []string) {
 	}
 }
 
-func (reloader *Reloader)EchoFiles() {
+// EchoFiles get all the files being checked.
+func (reloader *Reloader) EchoFiles() {
 	fmt.Println(reloader.files)
 }
 
-// based on .gitignore rules and then do it.
+// ignoreFilter filter source files if needed check.
 func (reloader *Reloader) ignoreFilter(filename string) bool {
-
-	return true
+	// TODO file extension name, has has not
+	// regex syntax check
+	// temporary just check for golang source code.
+	splits := strings.Split(filename, "\n")
+	if splits[len(splits)-1] == "go" {
+		return true
+	}
+	return false
 }
 
-func (reloader *Reloader) Start() (error) {
+// Start start reloading
+func (reloader *Reloader) Start() error {
 	commander := commands.New()
 	currentPath := commander.GetOutput("pwd")
 	err := reloader.dirWalks(currentPath)
@@ -82,7 +97,7 @@ func (reloader *Reloader) Start() (error) {
 				if !ok {
 					break
 				}
-				log.Println("event:", event)
+				// log.Println("event:", event)
 				if event.Op&fsnotify.Write == fsnotify.Write {
 					log.Println("modified file: ", event.Name)
 				}
@@ -93,7 +108,11 @@ func (reloader *Reloader) Start() (error) {
 				log.Println("error: ", err)
 
 			}
+			// add the checking duration
+			time.Sleep(time.Duration(reloader.Duration))
 		}
 	}()
-    return nil
+	// run the main command
+	commander.Run(reloader.Command[0], reloader.Command[1:]...)
+	return nil
 }
