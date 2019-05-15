@@ -108,11 +108,10 @@ func (reloader *Reloader) Start() error {
 	}
 	go func() {
 		for {
-			fmt.Println("start method beginning...")
 			time.Sleep(time.Second * 2)
 			select {
 			case event, ok := <-reloader.Watcher.Events:
-				log.Println("event:", event)
+				// log.Println("event:", event)
 				if !ok {
 					break
 				}
@@ -125,13 +124,12 @@ func (reloader *Reloader) Start() error {
 				}
 				log.Println("error: ", err)
 				// add the checking duration
-				fmt.Println("looping...")
-				log.Println("each loop end.")
 			}
 		}
 	}()
 	// run the main command
 	fmt.Println("commands: ", reloader.Command)
+	// TODO kill old process and then reloading new process
 	// commander.Run(reloader.Command[0], reloader.Command[1:]...)
 	return nil
 }
